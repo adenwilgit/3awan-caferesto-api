@@ -1,16 +1,16 @@
 from flask import Flask, jsonify
+from flask_cors import CORS
 from config.database import engine, Base, get_db
 from routes.web import web
 from models.menu_model import Menu
 from sqlalchemy.orm import Session
 
 app = Flask(__name__)
+CORS(app)  # ✅ Izinkan akses dari Flutter Web
 
-# Buat tabel otomatis jika belum ada
 Base.metadata.create_all(bind=engine)
-
-# Daftarkan route dari file web.py (CRUD endpoint)
 app.register_blueprint(web)
+
 
 # Route utama menampilkan data JSON dari tabel menus
 @app.route("/")
