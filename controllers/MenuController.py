@@ -1,77 +1,72 @@
 from flask import jsonify, request
-from config.database import get_db
+from config.database import SessionLocal
 from models.menu_model import Menu
-from sqlalchemy.orm import Session
 
-# GET all menus
-def get_all_menus():
-    db: Session = next(get_db())
-    menus = db.query(Menu).all()
-    return jsonify([{
-        "id": m.id,
-        "name": m.name,
-        "price": float(m.price) if m.price.replace('.', '', 1).isdigit() else 0.0,
-        "category": m.category,
-        "image_url": m.image_url
-    } for m in menus])
-
-# GET menu by ID
-def get_menu_by_id(id):
-    db: Session = next(get_db())
-    menu = db.query(Menu).filter(Menu.id == id).first()
-    if not menu:
-        return jsonify({"message": "Menu not found"}), 404
-    return jsonify({
+# ✅ Helper untuk mengubah ORM ke dict JSON
+def serialize_menu(menu):
+    return {
         "id": menu.id,
         "name": menu.name,
-        "price": float(menu.price) if menu.price.replace('.', '', 1).isdigit() else 0.0,
+        "price": float(menu.price) if str(menu.price).replace('.', '', 1).isdigit() else 0.0,
         "category": menu.category,
         "image_url": menu.image_url
-    })
+    }
 
-# POST add menu
+# ✅ GET all menus
+def get_all_menus():
+    with SessionLocal() as db:  # ✅ koneksi otomatis tertutup
+        menus = db.query(Menu).all()
+        return jsonify([serialize_menu(m) for m in menus])
+
+# ✅ GET menu by ID
+def get_menu_by_id(id):
+    with SessionLocal() as db:
+        menu = db.query(Menu).filter(Menu.id == id).first()
+        if not menu:
+            return jsonify({"message": "Menu not found"}), 404
+        return jsonify(serialize_menu(menu))
+
+# ✅ POST add menu
 def add_menu():
-    db: Session = next(get_db())
-    body = request.json
+    with SessionLocal() as db:
+        body = request.json
+        new_menu = Menu(
+            name=body["name"],
+            price=str(body["price"]),
+            category=body["category"],
+            image_url=body["image_url"]
+        )
 
-    new_menu = Menu(
-        name=body["name"],
-        price=str(body["price"]),  # disimpan sebagai teks
-        category=body["category"],
-        image_url=body["image_url"]
-    )
+        db.add(new_menu)
+        db.commit()
+        db.refresh(new_menu)
+        return jsonify({"message": "Menu added", "id": new_menu.id})
 
-    db.add(new_menu)
-    db.commit()
-    db.refresh(new_menu)
-
-    return jsonify({"message": "Menu added", "id": new_menu.id})
-
-# PUT update menu
+# ✅ PUT update menu
 def update_menu(id):
-    db: Session = next(get_db())
-    body = request.json
-    menu = db.query(Menu).filter(Menu.id == id).first()
+    with SessionLocal() as db:
+        body = request.json
+        menu = db.query(Menu).filter(Menu.id == id).first()
 
-    if not menu:
-        return jsonify({"message": "Menu not found"}), 404
+        if not menu:
+            return jsonify({"message": "Menu not found"}), 404
 
-    menu.name = body["name"]
-    menu.price = str(body["price"])
-    menu.category = body["category"]
-    menu.image_url = body["image_url"]
+        menu.name = body["name"]
+        menu.price = str(body["price"])
+        menu.category = body["category"]
+        menu.image_url = body["image_url"]
 
-    db.commit()
-    return jsonify({"message": "Menu updated"})
+        db.commit()
+        return jsonify({"message": "Menu updated"})
 
-# DELETE menu
+# ✅ DELETE menu
 def delete_menu(id):
-    db: Session = next(get_db())
-    menu = db.query(Menu).filter(Menu.id == id).first()
+    with SessionLocal() as db:
+        menu = db.query(Menu).filter(Menu.id == id).first()
 
-    if not menu:
-        return jsonify({"message": "Menu not found"}), 404
+        if not menu:
+            return jsonify({"message": "Menu not found"}), 404
 
-    db.delete(menu)
-    db.commit()
-    return jsonify({"message": "Menu deleted"})
+        db.delete(menu)
+        db.commit()
+        return jsonify({"message": "Menu deleted"})
